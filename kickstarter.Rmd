@@ -1,0 +1,83 @@
+---
+title: "kickstarter"
+author: "dayci"
+date: "11/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(plotly)
+library(ggplot2)
+```
+
+We hope to examine the following research questions:
+
+2. What is the relationship between the goal ($) and the success of the campaign?
+a. Distribution of (goal ($) - raised amount ($))
+3. What is the relationship between a single pledge amount and goal (%)?
+a. Do people pay more in expensive campaigns?
+b. Do people pay differently in different countries?
+4. How does the data vary across different categories of campaigns?
+a. Which category has a higher success rate? (break down by countries) ?
+b. Which categories have higher pledges/goals? Lower pledges/goals?
+
+```{r}
+df0 <- read.csv("ks-projects-201801.csv")
+df0 %>% head()
+```
+
+
+```{r}
+df <- df0 %>% 
+  mutate(inicio = as.Date(df0$launched, format = "%Y-%m-%d"),
+         final = as.Date(df0$deadline, format = "%Y-%m-%d"),
+         duracion = as.numeric(final - inicio)) %>%
+  filter(duracion <=365)
+#max((df$duracion))
+```
+
+```{r}
+hist(df$duracion)
+boxplot(df$duracion ~ df$state)
+```
+
+```{r}
+fig <- df %>%
+  plot_ly(
+    x = ~ state,
+    y = ~ duracion,
+    type = 'box',
+    box = list(visible = T),
+    meanline = list(visible = T)
+  ) 
+fig
+```
+
+
+```{r}
+df <- df %>%
+  filter(duracion <= 365)
+```
+
+```{r}
+aov(duracion ~state, data = df)
+```
+
+
+```{r}
+
+
+fig <- plot_ly(ggplot2::diamonds, y = ~ df$duracion, color = ~df$state, type = "box")
+fig
+```
+
+### 1. Does the campaign length impact the success rate?
+
+```{r}
+
+```
+
