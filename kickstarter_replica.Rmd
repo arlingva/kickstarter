@@ -1,0 +1,491 @@
+---
+title: "kickstarter"
+author: "dayci"
+date: "11/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999) 
+library(dplyr)
+library(magrittr)
+library(lubridate)
+library(plotly)
+library(ggplot2)
+library(kableExtra)
+library(modeest)
+```
+
+We hope to examine the following research questions:
+
+1. Does the campaign length impact the success rate?
+2. What is the relationship between the goal ($) and the success of the campaign?
+a. Distribution of (goal ($) - raised amount ($))
+3. What is the relationship between a single pledge amount and goal (%)?
+a. Do people pay more in expensive campaigns?
+b. Do people pay differently in different countries?
+4. How does the data vary across different categories of campaigns?
+a. Which category has a higher success rate? (break down by countries) ?
+b. Which categories have higher pledges/goals? Lower pledges/goals?
+
+
+```{r}
+rm(list=ls())
+source("funcionesKickstarter.R")
+```
+
+En este proyecto se analizarán datos acerca de proyectos en Kicstarter; el conjunto de datos está disponible en Kaggle y consta de 378,661 registros y 19 variables que describen, fecha de inicio y final, cantidad de patrocinadores, país de origen, monto objetivo, monto logrado en moneda local y en dólares, entre otros.
+
+https://www.kaggle.com/kemical/kickstarter-projects?fbclid=IwAR2NYBkzGoCMIOe2NqEkBvGt8rg3lMX2AmKBQOBFjnuhTU3Vr9QEQw4VrUc
+
+El objetivo del presente proyecto es replicar algunos resultados de éste artículo y responder las siguientes preguntas.
+
+1. ¿La longitud de la campaña afecta en la tasa de éxito? 
+2. ¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
+2.1 Distribución de (monto objetivo y cantidad lograda)
+
+
+```{r}
+df0 <- read.csv("ks-projects-201801.csv") %>% 
+  mutate(inicio = as.Date(launched, format = "%Y-%m-%d"),
+         final = as.Date(deadline, format = "%Y-%m-%d"),
+         duracion = as.numeric(final - inicio)) 
+df0 %>% 
+  head() %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
+
+## Limpieza de datos
+
+```{r}
+summary(df0)
+
+length(df0[which(df0$duracion > 100), 1])
+100 * length(df0[which(df0$backers == 0), 1]) / length(df0[,1])
+```
+
+
+```{r}
+df <- df0 %>%
+  filter(duracion <= 100)
+```
+
+```{r}
+tabla(df$state)
+```
+
+
+```{r}
+df %>%
+  group_by(state) %>%
+  tally() -> data.fig
+
+fig <- plot_ly(
+  x = data.fig$state,
+  y = data.fig$n / sum(data.fig$n),
+  type = "bar"
+)
+```
+
+## Duración de la campaña y tasa de éxito
+
+La duración de la campaña se agrupa en los rangos 
+
+```{r}
+df <- df %>%
+  arrange(duracion) %>%
+  mutate(Campaign.Length = case_when(
+    duracion <= 7 ~ "0 a 7 días",
+    duracion <= 22 ~ "08 a 22 días",
+    duracion <= 37 ~ "23 a 37 días",
+    duracion <= 52 ~ "38 a 52 días",
+    duracion <= 67 ~ "53 a 67 días",
+    duracion <= 82 ~ "68 a 82 días",
+    duracion <= 93 ~ "83 a 92 días",
+    TRUE ~ "Más de 92 días"))
+vec.categorias <- unique(df$Campaign.Length)
+```
+
+```{r}
+tabla(df$Campaign.Length)
+tabla(df$state)
+```
+
+```{r}
+crosstab(df$state, df$Campaign.Length, Freq = TRUE)%>%
+  t() %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
+
+```{r}
+crosstab(df$state, df$Campaign.Length, Freq = FALSE)%>%
+  t() %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
+
+```{r}
+summary(df$duracion)
+```
+
+Distribución acumulada
+
+```{r}
+estado <- "successful"
+titulo <- "Campañas exitosas"
+df.cum  <- df %>% 
+  filter(state == estado) %>%
+  select(duracion) %>%
+  group_by(duracion) %>%
+  tally() %>%
+  mutate(acumulado = cumsum(n),
+         probabilidad = acumulado/sum(n))
+
+plot(df.cum$probabilidad, type = "l", col = "blue",
+     ylab = "Probabilidad", xlab = "Duración (días)",
+     main = titulo)
+```
+
+```{r}
+#failed
+#exceeded goal
+#canceled
+```
+
+```{r}
+estado <- "successful"
+titulo <- "Campañas exitosas"
+state.vs.lenght <- crosstab(df$Campaign.Length, df$state, Freq = TRUE) %>%
+  data.frame() %>%
+  filter(columna == estado) 
+
+fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
+fig <- fig %>% layout(title = titulo,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+```{r}
+#failed
+#canceled
+```
+
+```{r}
+estado <- "successful"
+titulo <- "Campañas exitosas"
+
+df %>% 
+  filter(state == estado, duracion <= 100) -> fig
+hist(fig$duracion, main = titulo, 
+     ylab = "Número de campañas", 
+     xlab = "Duración de la campaña (días)")
+```
+
+```{r}
+#failed
+#canceled
+```
+
+```{r}
+estado <- "successful"
+categoria <- "0 a 7 días"
+titulo <- "Campañas exitosas"
+state.vs.lenght <- crosstab(df$Campaign.Length, df$state, Freq = FALSE) %>%
+  data.frame() %>%
+  filter(columna == estado) 
+
+fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
+fig <- fig %>% layout(title = 'C',
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+
+
+```{r}
+titulo <- "Campañas exitosas"
+
+df.cat <- df %>%
+  filter(Campaign.Length == categoria) %>%
+  select(state) %>%
+  group_by(state) %>%
+  tally() 
+
+df.cat  %>%
+  plot_ly(labels = ~state, values = ~n, type = 'pie') %>% 
+  layout(title = paste("Categoría:", categoria),
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+df.cat %>% 
+  plot_ly(
+  x = ~state,
+  y = ~n,
+  name = titulo,
+  type = "bar"
+  )
+```
+
+
+
+```{r}
+filtro <- "0 a 7 días"
+titulo <- "Campañas exitosas"
+
+fig <- plot_ly(df0, labels = ~state, values = ~n, type = 'pie')
+fig <- fig %>% layout(title = titulo,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
+```
+
+```{r}
+filtro <- "0 a 7 días"
+titulo <- "Campañas exitosas"
+
+fig <- plot_ly(
+  x = df0$state,
+  y = df0$n,
+  type = "bar"
+)
+
+fig
+```
+
+```{r}
+#barplot(df$backers)
+hist(df$backers[df$backers <= 1000])
+#summary(df$backers)
+#boxplot(df$backers)
+```
+
+## Parte 2
+
+```{r}
+df <- df %>%
+  arrange(usd_goal_real) %>%
+  mutate(rangosGoal = case_when(
+    usd_goal_real <= 1000 ~ "[0, 1,000]",
+    usd_goal_real <= 10000 ~ "(1,000, 10,000]",
+    usd_goal_real <= 100000 ~ "(10,000, 100,000]",
+    TRUE ~ "(100,000, ...)"))
+
+#vec.rangoGoal <- unique(df$rangosGoal)
+#as.factor(vec.rangoGoal)
+
+# ordenando niveles (copiar factor anterior)
+vec.rangoGoal <- factor(unique(df$rangosGoal),
+                          ordered = TRUE,
+                          levels = c("[0, 1,000]", 
+                                     "(1,000, 10,000]",
+                                     "(10,000, 100,000]",
+                                     "(100,000, ...)"))
+```
+
+```{r}
+df %>%
+  summarise(Media = mean(usd_goal_real),
+            Moda = mfv(usd_goal_real),
+            Varianza = var(usd_goal_real),
+            sd = sqrt(Varianza),
+            Mínimo = min(usd_goal_real),
+            Q25 = quantile(usd_goal_real, 0.25),
+            Mediana = median(usd_goal_real),
+            Q75 = quantile(usd_goal_real, 0.75),
+            Máximo = max(usd_goal_real),
+            RIC = Q75 - Q25
+            ) %>%
+  t() -> goal.descriptivos
+```
+
+```{r}
+df.desc <- df %>%
+  group_by(rangosGoal) %>%
+  summarise(Media = mean(usd_goal_real),
+            Moda = mfv(usd_goal_real),
+            Varianza = var(usd_goal_real),
+            sd = sqrt(Varianza),
+            Mínimo = min(usd_goal_real),
+            Q25 = quantile(usd_goal_real, 0.25),
+            Mediana = median(usd_goal_real),
+            Q75 = quantile(usd_goal_real, 0.75),
+            Máximo = max(usd_goal_real),
+            RIC = Q75 - Q25
+            )
+nombres <- t(df.desc[, 1])
+df.desc <- data.frame(t(df.desc[-1]))
+colnames(df.desc) <- nombres
+cbind(df.desc, General =goal.descriptivos) %>%
+  round(2) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
+
+Comparando las medias de 
+
+```{r}
+df %>%
+  group_by(state) %>%
+  summarise(Media = mean(usd_goal_real),
+            n = n()) 
+```
+
+```{r}
+df <- df %>%
+  mutate(dif.pledged.goal = usd_pledged_real - usd_goal_real)
+```
+
+```{r}
+alpha <- 0.05
+
+hist(df$usd_goal_real)
+
+y <- descarta.outliers(df$usd_goal_real, alpha)
+hist(y)
+```
+
+
+
+```{r}
+ggplot(data = df, aes(x = usd_goal_real)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df$usd_goal_real),
+                            sd = sd(df$usd_goal_real))) +
+  ggtitle(paste("Histograma con curva normal teórica")) +
+  theme_bw()
+```
+
+```{r}
+ggplot(data = df, aes(x = dif.pledged.goal)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df$dif.pledged.goal),
+                            sd = sd(df$dif.pledged.goal))) +
+  ggtitle(paste("Histograma con curva normal teórica")) +
+  theme_bw()
+```
+
+```{r}
+df.CDF <- df %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+```{r}
+df.CDF <- df %>%
+  select(dif.pledged.goal) %>%
+  arrange(dif.pledged.goal) %>%
+  mutate(acumulado = cumsum(dif.pledged.goal),
+         CDF = acumulado / sum(dif.pledged.goal))
+
+fig <- plot_ly(df.CDF, x = ~dif.pledged.goal, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+```{r}
+dif <- df$usd_goal_real - df$usd_pledge_real
+df.CDF <- df %>%
+  select(dif) %>%
+  arrange(dif) %>%
+  mutate(acumulado = cumsum(dif),
+         CDF = acumulado / sum(dif))
+
+fig <- plot_ly(df.CDF, x = ~dif, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+
+fig
+```
+
+```{r}
+estado <- "successful"
+
+df.goal <- df %>% 
+filter(state == estado)
+
+ggplot(data = df.goal, aes(x = usd_goal_real)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df.goal$usd_goal_real),
+                            sd = sd(df.goal$usd_goal_real))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+```
+
+
+```{r}
+rango = "[0, 1,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+
+fig
+```
+
+
+```{r}
+rango = "(1,000, 10,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+```{r}
+rango = "(10,000, 100,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+
+fig
+```
+
+```{r}
+rango = "(100,000, ...)"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+
+fig
+```

@@ -12,11 +12,20 @@ library(magrittr)
 library(lubridate)
 library(plotly)
 library(ggplot2)
+library(kableExtra)
+
+rm(list=ls())
+source("funcionesKickstarter.R")
+
 ```
 
 We hope to examine the following research questions:
 
-2. What is the relationship between the goal ($) and the success of the campaign?
+
+2. ¿Cuál es la relación entre el objetivo y el éxito de la campaña?
+   a) Distribución de (objetivo - monto recaudado)
+
+
 a. Distribution of (goal ($) - raised amount ($))
 3. What is the relationship between a single pledge amount and goal (%)?
 a. Do people pay more in expensive campaigns?
@@ -25,59 +34,183 @@ b. Do people pay differently in different countries?
 a. Which category has a higher success rate? (break down by countries) ?
 b. Which categories have higher pledges/goals? Lower pledges/goals?
 
-```{r}
-df0 <- read.csv("ks-projects-201801.csv")
-df0 %>% head()
-```
 
 
 ```{r}
-df <- df0 %>% 
-  mutate(inicio = as.Date(df0$launched, format = "%Y-%m-%d"),
-         final = as.Date(df0$deadline, format = "%Y-%m-%d"),
-         duracion = as.numeric(final - inicio)) %>%
-  filter(duracion <=365)
-#max((df$duracion))
+df0 <- read.csv("ks-projects-201801.csv") %>% 
+  mutate(inicio = as.Date(launched, format = "%Y-%m-%d"),
+         final = as.Date(deadline, format = "%Y-%m-%d"),
+         duracion = as.numeric(final - inicio))
+
+df <- df0 %>%
+  filter(duracion <= 100)
+df %>% head()
+```
+
+### 1. ¿La duración de la campaña afecta la tasa de éxito?
+
+```{r}
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
 ```
 
 ```{r}
-hist(df$duracion)
-boxplot(df$duracion ~ df$state)
+df[with(df, order(-df$duracion)), ] 
+
+df.duracion <- df %>%   
+  select(duracion) %>%
+  group_by(duracion) %>%
+  tally() 
+
+df.duracion[with(df, order(-df.duracion$n)), ] %>%
+  mutate(Porcentaje = round(100*n/sum(n),1), 
+         Acumulado = round(100*cumsum(n) / sum(n),1)) %>% 
+  head()
 ```
 
-```{r}
-fig <- df %>%
-  plot_ly(
-    x = ~ state,
-    y = ~ duracion,
-    type = 'box',
-    box = list(visible = T),
-    meanline = list(visible = T)
-  ) 
-fig
-```
-
+Codificar duración de la campaña
 
 ```{r}
 df <- df %>%
-  filter(duracion <= 365)
+  arrange(duracion) %>%
+  mutate(duracionGrupo = case_when(
+    duracion <= 7 ~ "0 a 7 días",
+    duracion <= 22 ~ "08 a 22 días",
+    duracion <= 37 ~ "23 a 37 días",
+    duracion <= 52 ~ "38 a 52 días",
+    duracion <= 67 ~ "53 a 67 días",
+    #TRUE ~ "68 días o más"))
+    duracion <= 82 ~ "68 a 82 días",
+    duracion <= 93 ~ "83 a 92 días",
+    TRUE ~ "Más de 92 días"))
 ```
 
 ```{r}
-aov(duracion ~state, data = df)
+table(df$duracionGrupo, df$state) %>%
+  chisq.test()
+
+crosstab(df$duracionGrupo, df$state, Freq = TRUE)
+crosstab(df$duracionGrupo, df$state, Freq = FALSE)
 ```
 
 
 ```{r}
-
-
-fig <- plot_ly(ggplot2::diamonds, y = ~ df$duracion, color = ~df$state, type = "box")
-fig
+par(mfrow = c(3,2))
+qqnorm(df[df$state == "canceled","duracion"], main = "canceled")
+qqline(df[df$state == "canceled","duracion"])
+qqnorm(df[df$state == "failed","duracion"], main = "failed")
+qqline(df[df$state == "failed","duracion"])
+qqnorm(df[df$state == "live","duracion"], main = "live")
+qqline(df[df$state == "live","duracion"])
+qqnorm(df[df$state == "successful","duracion"], main = "successful")
+qqline(df[df$state == "successful","duracion"])
+qqnorm(df[df$state == "suspended","duracion"], main = "suspended")
+qqline(df[df$state == "suspended","duracion"])
+qqnorm(df[df$state == "undefined","duracion"], main = "undefined")
+qqline(df[df$state == "undefined","duracion"])
 ```
 
-### 1. Does the campaign length impact the success rate?
 
 ```{r}
-
+df %>%
+  group_by(state) %>%
+  summarise(mean = mean(duracion), varianza = var(duracion))
 ```
+
+
+## Duración de la campaña y tasa de éxito
+
+```{r}
+par(mfrow = c(3,2))
+
+estado <- "canceled"
+
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+
+estado <- "failed"
+
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+
+estado <- "live"
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+
+estado <- "successful"
+
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+
+estado <- "suspended"
+
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+
+estado <- "undefined"
+
+df1 <- df %>% 
+filter(state == estado)
+  
+ggplot(data = df1, aes(x = duracion)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df1$duracion),
+                            sd = sd(df1$duracion))) +
+  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
+  theme_bw()
+```
+
 
