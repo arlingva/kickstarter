@@ -1,5 +1,5 @@
 ---
-title: "kickstarter"
+title: "Análisis de datos | Kickstarter"
 author: "Arling Vázquez"
 date: "11/20/2020"
 output: html_document
@@ -413,10 +413,15 @@ ggplot(data = df, aes(x = goal1)) +
 ```
 
 ```{r}
-cbind(df.desc, General =goal.descriptivos) %>%
-  round(2) %>%
-  kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+goal1 <-log(goal1)
+ggplot(data = df, aes(x = goal1)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(goal1, na.rm = TRUE),
+                            sd = sd(goal1, na.rm = TRUE))) +
+  ggtitle(paste("Histograma con curva normal teórica")) +
+  theme_bw()
 ```
 
 ### CDF
@@ -432,74 +437,129 @@ df <- df %>%
 df.CDF <- df %>%
   select(usd_goal_real) %>%
   arrange(usd_goal_real) %>%
-  mutate(acumulado =  (usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
          
 fig <- plot_ly(x = ~df.CDF$usd_goal_real, 
                y = df.CDF$CDF, type = 'scatter', mode = 'lines')
-fig
-
-plot(CDF)
 ```
-
-```{r}
-df.CDF <- df %>%
-  select(usd_goal_real) %>%
-  arrange(usd_goal_real) %>%
-  filter(!is.na(usd_goal_real)) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
-
-fig <- plot_ly(x = ~df.CDF$usd_goal_real, 
-               y = df.CDF$CDF, type = 'scatter', mode = 'lines')
-fig
-```
-
-```{r}
-df.CDF <- df %>%
-  select(goal.alpha) %>%
-  arrange(goal.alpha) %>%
-  filter(!is.na(goal.alpha)) %>%
-  mutate(acumulado = cumsum(goal.alpha),
-         CDF = acumulado / sum(goal.alpha))
-
-fig <- plot_ly(x = ~df.CDF$goal.alpha, 
-               y = df.CDF$CDF, type = 'scatter', mode = 'lines')
-fig
-```
-
 
 ```{r}
 rango = "G1 [0, 1,000]"
 df.CDF <- df %>%
   filter(rangosGoal == rango) %>%
-  select(goal.alpha) %>%
-  arrange(goal.alpha) %>%
-  filter(!is.na(goal.alpha)) %>%
-  mutate(acumulado = cumsum(goal.alpha),
-         CDF = acumulado / sum(goal.alpha))
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
 
-fig <- plot_ly(df.CDF, x = ~goal.alpha, 
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
                y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+
+df.grupo <- df %>%
+  select(rangosGoal, state) %>%
+  filter(rangosGoal == rango) %>%
+  group_by(state) %>%
+  tally() %>%
+  mutate(porcentaje = n/sum(n))
+
+fig <- plot_ly(df.grupo, labels = ~state, values = ~porcentaje, type = 'pie')
+fig <- fig %>% layout(title = rango,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
 fig
 ```
 
-
 ```{r}
-rango = "(1,000, 10,000]"
+rango = "G2 (1,000, 10,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
 
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
 
+df.grupo <- df %>%
+  select(rangosGoal, state) %>%
+  filter(rangosGoal == rango) %>%
+  group_by(state) %>%
+  tally() %>%
+  mutate(porcentaje = n/sum(n))
+
+fig <- plot_ly(df.grupo, labels = ~state, values = ~porcentaje, type = 'pie')
+fig <- fig %>% layout(title = rango,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
 ```
 
 ```{r}
-rango = "(10,000, 100,000]"
+rango = "G3 (10,000, 100,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
 
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+
+df.grupo <- df %>%
+  select(rangosGoal, state) %>%
+  filter(rangosGoal == rango) %>%
+  group_by(state) %>%
+  tally() %>%
+  mutate(porcentaje = n/sum(n))
+
+fig <- plot_ly(df.grupo, labels = ~state, values = ~porcentaje, type = 'pie')
+fig <- fig %>% layout(title = rango,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
 ```
 
 ```{r}
-rango = "(100,000, ...)"
+rango = "G4 (100,000, ...)"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
 
+fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
 
+df.grupo <- df %>%
+  select(rangosGoal, state) %>%
+  filter(rangosGoal == rango) %>%
+  group_by(state) %>%
+  tally() %>%
+  mutate(porcentaje = n/sum(n))
+
+fig <- plot_ly(df.grupo, labels = ~state, values = ~porcentaje, type = 'pie')
+fig <- fig %>% layout(title = rango,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
 ```
 
 ### Diferencia entre monto objetivo y monto logrado
@@ -517,6 +577,8 @@ ggplot(data = df, aes(x = dif.goal.pledge)) +
   theme_bw()
 ```
 
+Descartando outliers:
+
 ```{r}
 ggplot(data = df, aes(x = dif.alpha)) +
   geom_histogram(aes(y = ..density.., fill = ..count..)) +
@@ -532,26 +594,24 @@ ggplot(data = df, aes(x = dif.alpha)) +
 df.CDF <- df %>%
   select(usd_goal_real) %>%
   arrange(usd_goal_real) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
+  group_by(usd_goal_real) %>%
+  tally() %>%
+  mutate(acumulado =  cumsum(n), 
+         CDF = acumulado / sum(n))
 
 fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
                y = ~CDF, type = 'scatter', mode = 'lines')
 fig
 ```
 
-```{r}
-estado <- "successful"
+## Conclusiones
 
-df.goal <- df %>% 
-filter(state == estado)
+- El 64.3% de las campañas tiene duración de 23 a 37 días y el valor con mayor frecuencia en la duración es 30 días
 
-ggplot(data = df.goal, aes(x = usd_goal_real)) +
-  geom_histogram(aes(y = ..density.., fill = ..count..)) +
-  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
-  stat_function(fun = dnorm, colour = "firebrick", 
-                args = list(mean = mean(df.goal$usd_goal_real),
-                            sd = sd(df.goal$usd_goal_real))) +
-  ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
-  theme_bw()
-```
+- Las campañas con mayor tasa de éxito están en los grupos 8 a 22 días y 0 a 7 días con 48.7% y 42.0%, respectivamente.
+
+- Las campañas exitosas suelen tener monto objetivo menor al resto (9,533 USD en promedio); por otro lado, la meta de campañas fallidas y canceladas es superior a 63,000 USD.
+
+- El monto solicitado con mayor frecuencia es 5,000 USD.
+
+- Aparentemente, el monto objetivo en dólares sigue una distribución lognormal.
