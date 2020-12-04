@@ -17,18 +17,6 @@ library(kableExtra)
 library(modeest)
 ```
 
-We hope to examine the following research questions:
-
-1. Does the campaign length impact the success rate?
-2. What is the relationship between the goal ($) and the success of the campaign?
-a. Distribution of (goal ($) - raised amount ($))
-3. What is the relationship between a single pledge amount and goal (%)?
-a. Do people pay more in expensive campaigns?
-b. Do people pay differently in different countries?
-4. How does the data vary across different categories of campaigns?
-a. Which category has a higher success rate? (break down by countries) ?
-b. Which categories have higher pledges/goals? Lower pledges/goals?
-
 
 ```{r}
 rm(list=ls())
@@ -45,6 +33,9 @@ El objetivo del presente proyecto es replicar algunos resultados de éste artíc
 2. ¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
 2.1 Distribución de (monto objetivo y cantidad lograda)
 
+## Lectura y limpieza de datos
+
+Como primer paso, se realiza la lectura de datos; además, se crean tres variables; inicio, final y duración del proyecto. En la siguiente tabla se presenta una muestra de los datos.
 
 ```{r}
 df0 <- read.csv("ks-projects-201801.csv") %>% 
@@ -57,15 +48,17 @@ df0 %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
 ```
 
-## Limpieza de datos
+Ahora, se obtienen estadísticos descriptivos básicos de cada variable:
 
 ```{r}
 summary(df0)
-
-length(df0[which(df0$duracion > 100), 1])
-100 * length(df0[which(df0$backers == 0), 1]) / length(df0[,1])
 ```
 
+El conjunto de datos incluye información sobre 7 campañas iniciadas en 1970; considerando que el sitio Kickstarter fue fundado en 2009, esos datos se descartarán de este análisis.
+
+```{r}
+100 * length(df0[which(df0$duracion > 100), 1]) / length(df0[,1])
+```
 
 ```{r}
 df <- df0 %>%
@@ -73,9 +66,18 @@ df <- df0 %>%
 ```
 
 ```{r}
-tabla(df$state)
+100 * length(df0[which(df0$backers > 100), 1]) / length(df0[,1])
 ```
 
+## Duración de la campaña y tasa de éxito
+
+En esta parte se busca responder la siguiente pregunta: ¿La longitud de la campaña afecta en la tasa de éxito? 
+
+Solo el 35.4 % de las campañas logran completarse con éxito.
+
+```{r}
+tabla(df$state)
+```
 
 ```{r}
 df %>%
@@ -87,16 +89,15 @@ fig <- plot_ly(
   y = data.fig$n / sum(data.fig$n),
   type = "bar"
 )
+fig
 ```
 
-## Duración de la campaña y tasa de éxito
-
-La duración de la campaña se agrupa en los rangos 
+Para fines de comparación con los resultados del artículo, la duración de la campaña se agrupa en los rangos:
 
 ```{r}
 df <- df %>%
   arrange(duracion) %>%
-  mutate(Campaign.Length = case_when(
+  mutate(rangosDuracion = case_when(
     duracion <= 7 ~ "0 a 7 días",
     duracion <= 22 ~ "08 a 22 días",
     duracion <= 37 ~ "23 a 37 días",
@@ -105,37 +106,73 @@ df <- df %>%
     duracion <= 82 ~ "68 a 82 días",
     duracion <= 93 ~ "83 a 92 días",
     TRUE ~ "Más de 92 días"))
-vec.categorias <- unique(df$Campaign.Length)
+#vec.categorias <- unique(df$rangosDuracion)
 ```
 
-```{r}
-tabla(df$Campaign.Length)
-tabla(df$state)
-```
+El 64.3% de campañas duró entre 23 y 37 días
 
 ```{r}
-crosstab(df$state, df$Campaign.Length, Freq = TRUE)%>%
+tabla(df$rangosDuracion)
+```
+
+Se genera una tabla de contingencia, de frecuencias, entre las variables duración (agrupada en rangos) y el estado de la campaña.
+
+```{r}
+crosstab(df$state, df$rangosDuracion, Freq = TRUE)%>%
+  t() %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
+
+Ahora, la misma tabla con porcentajes
+
+```{r}
+df.tabla <- crosstab(df$state, df$rangosDuracion, Freq = FALSE)
+df.tabla %>%
   t() %>%
   kbl() %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
 ```
 
 ```{r}
-crosstab(df$state, df$Campaign.Length, Freq = FALSE)%>%
-  t() %>%
-  kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+fig <- plot_ly(df, y = ~duracion, type = "box")
+fig <- fig %>% add_trace(y = ~rnorm(50, 1))
+
+fig
 ```
+
+```{r}
+df.tabla <-df.tabla %>%
+  data.frame() %>%
+  filter(renglon == "successful")
+
+fig <- plot_ly(df.tabla, x = ~columna, y = ~Freq, 
+               type = 'scatter', mode = 'lines',
+               ylab = "Tasa de éxito", xlab = "Duración de campaña")
+
+fig
+```
+
+De esta gráfica, se observa que los proyectos con duración entre 8 y 22 días tienen mayor tasa de éxito, seguida del grupo que dura 7 días o menos. Por otro lado, las campañas entre 53 a 67 días tienen tasa de éxito menor que el resto de grupos.
+
+A continuación, se repican algunas gráficas del artículo de referencia.
 
 ```{r}
 summary(df$duracion)
 ```
 
-Distribución acumulada
+### Distribución acumulada
+
+Estadísticos descriptivos de la duración
+
+```{r}
+summary(df$duracion)
+paste("Moda: ", mfv(df$duracion))
+paste("Desviación estándar: ", sd(df$duracion))
+```
 
 ```{r}
 estado <- "successful"
-titulo <- "Campañas exitosas"
 df.cum  <- df %>% 
   filter(state == estado) %>%
   select(duracion) %>%
@@ -146,147 +183,141 @@ df.cum  <- df %>%
 
 plot(df.cum$probabilidad, type = "l", col = "blue",
      ylab = "Probabilidad", xlab = "Duración (días)",
-     main = titulo)
+     main = estado, xlim = c(0, 100))
 ```
 
 ```{r}
-#failed
-#exceeded goal
-#canceled
+estado <- "failed"
+df.cum  <- df %>% 
+  filter(state == estado) %>%
+  select(duracion) %>%
+  group_by(duracion) %>%
+  tally() %>%
+  mutate(acumulado = cumsum(n),
+         probabilidad = acumulado/sum(n))
+
+plot(df.cum$probabilidad, type = "l", col = "blue",
+     ylab = "Probabilidad", xlab = "Duración (días)",
+     main = estado, xlim = c(0, 100))
 ```
+
+```{r}
+estado <- "exceeded goal"
+df.cum  <- df %>% 
+  filter(usd_pledged_real - usd_goal_real >=0) %>%
+  select(duracion) %>%
+  group_by(duracion) %>%
+  tally() %>%
+  mutate(acumulado = cumsum(n),
+         probabilidad = acumulado/sum(n))
+
+plot(df.cum$probabilidad, type = "l", col = "blue",
+     ylab = "Probabilidad", xlab = "Duración (días)",
+     main = estado, xlim = c(0, 100))
+```
+
+```{r}
+estado <- "canceled"
+df.cum  <- df %>% 
+  filter(state == estado) %>%
+  select(duracion) %>%
+  group_by(duracion) %>%
+  tally() %>%
+  mutate(acumulado = cumsum(n),
+         probabilidad = acumulado/sum(n))
+
+plot(df.cum$probabilidad, type = "l", col = "blue",
+     ylab = "Probabilidad", xlab = "Duración (días)",
+     main = estado, xlim = c(0, 100))
+```
+
+### Duración en rango por estado de campaña
 
 ```{r}
 estado <- "successful"
-titulo <- "Campañas exitosas"
-state.vs.lenght <- crosstab(df$Campaign.Length, df$state, Freq = TRUE) %>%
+state.vs.lenght <- crosstab(df$rangosDuracion, df$state, Freq = TRUE) %>%
   data.frame() %>%
   filter(columna == estado) 
 
 fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
-fig <- fig %>% layout(title = titulo,
+fig <- fig %>% layout(title = estado,
          xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
          yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-
 fig
 ```
 
 ```{r}
-#failed
-#canceled
+estado <- "failed"
+state.vs.lenght <- crosstab(df$rangosDuracion, df$state, Freq = TRUE) %>%
+  data.frame() %>%
+  filter(columna == estado) 
+
+fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
+fig <- fig %>% layout(title = estado,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
+```
+
+```{r}
+estado <- "canceled"
+state.vs.lenght <- crosstab(df$rangosDuracion, df$state, Freq = TRUE) %>%
+  data.frame() %>%
+  filter(columna == estado) 
+
+fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
+fig <- fig %>% layout(title = estado,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+fig
 ```
 
 ```{r}
 estado <- "successful"
-titulo <- "Campañas exitosas"
 
 df %>% 
   filter(state == estado, duracion <= 100) -> fig
-hist(fig$duracion, main = titulo, 
+
+hist(fig$duracion, main = estado, 
      ylab = "Número de campañas", 
      xlab = "Duración de la campaña (días)")
 ```
 
 ```{r}
-#failed
-#canceled
+estado <- "failed"
+
+df %>% 
+  filter(state == estado, duracion <= 100) -> fig
+
+hist(fig$duracion, main = estado, 
+     ylab = "Número de campañas", 
+     xlab = "Duración de la campaña (días)")
 ```
 
 ```{r}
-estado <- "successful"
-categoria <- "0 a 7 días"
-titulo <- "Campañas exitosas"
-state.vs.lenght <- crosstab(df$Campaign.Length, df$state, Freq = FALSE) %>%
-  data.frame() %>%
-  filter(columna == estado) 
+estado <- "canceled"
 
-fig <- plot_ly(state.vs.lenght, labels = ~renglon, values = ~Freq, type = 'pie')
-fig <- fig %>% layout(title = 'C',
-         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+df %>% 
+  filter(state == estado, duracion <= 100) -> fig
 
-fig
+hist(fig$duracion, main = estado, 
+     ylab = "Número de campañas", 
+     xlab = "Duración de la campaña (días)")
 ```
 
+## Relación entre monto objetivo y éxito de la campaña
 
-
-```{r}
-titulo <- "Campañas exitosas"
-
-df.cat <- df %>%
-  filter(Campaign.Length == categoria) %>%
-  select(state) %>%
-  group_by(state) %>%
-  tally() 
-
-df.cat  %>%
-  plot_ly(labels = ~state, values = ~n, type = 'pie') %>% 
-  layout(title = paste("Categoría:", categoria),
-         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-
-df.cat %>% 
-  plot_ly(
-  x = ~state,
-  y = ~n,
-  name = titulo,
-  type = "bar"
-  )
-```
-
-
-
-```{r}
-filtro <- "0 a 7 días"
-titulo <- "Campañas exitosas"
-
-fig <- plot_ly(df0, labels = ~state, values = ~n, type = 'pie')
-fig <- fig %>% layout(title = titulo,
-         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-fig
-```
-
-```{r}
-filtro <- "0 a 7 días"
-titulo <- "Campañas exitosas"
-
-fig <- plot_ly(
-  x = df0$state,
-  y = df0$n,
-  type = "bar"
-)
-
-fig
-```
-
-```{r}
-#barplot(df$backers)
-hist(df$backers[df$backers <= 1000])
-#summary(df$backers)
-#boxplot(df$backers)
-```
-
-## Parte 2
+2. ¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
+2.1 Distribución de (monto objetivo y cantidad lograda)
 
 ```{r}
 df <- df %>%
   arrange(usd_goal_real) %>%
   mutate(rangosGoal = case_when(
-    usd_goal_real <= 1000 ~ "[0, 1,000]",
+    usd_goal_real <= 1000 ~ "(0, 1,000]",
     usd_goal_real <= 10000 ~ "(1,000, 10,000]",
     usd_goal_real <= 100000 ~ "(10,000, 100,000]",
     TRUE ~ "(100,000, ...)"))
-
-#vec.rangoGoal <- unique(df$rangosGoal)
-#as.factor(vec.rangoGoal)
-
-# ordenando niveles (copiar factor anterior)
-vec.rangoGoal <- factor(unique(df$rangosGoal),
-                          ordered = TRUE,
-                          levels = c("[0, 1,000]", 
-                                     "(1,000, 10,000]",
-                                     "(10,000, 100,000]",
-                                     "(100,000, ...)"))
 ```
 
 ```{r}
@@ -328,7 +359,7 @@ cbind(df.desc, General =goal.descriptivos) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
 ```
 
-Comparando las medias de 
+En la siguiente tabla se muestran el monto objetivo promedio por estado; puede observarse que las campañas exitosas tienen tienen, en promedio, un objetivo menor al resto.
 
 ```{r}
 df %>%
@@ -337,40 +368,70 @@ df %>%
             n = n()) 
 ```
 
+Resumen estadístico de usd_goal_real
+
 ```{r}
-df <- df %>%
-  mutate(dif.pledged.goal = usd_pledged_real - usd_goal_real)
+summary(df$usd_goal_real)
 ```
+
+```{r}
+hist(df$usd_goal_real)
+```
+
+#### Distribución de usd_goal_real
+
+Descartando outliers, se elimina al \alpha \% de los datos extremos
 
 ```{r}
 alpha <- 0.05
 
-hist(df$usd_goal_real)
-
-y <- descarta.outliers(df$usd_goal_real, alpha)
-hist(y)
+goal1 <- descarta.outliers(df$usd_goal_real, alpha)
+hist(goal1, main = "usd_goal_real sin outliers", freq = TRUE,
+     xlab = "usd_goal_real", ylab = NULL)
 ```
 
-
+Una distribución normal no es la mejor elección para modelar el monto objetivo; sin embargo, si se ajusta al logaritmo de los datos.
 
 ```{r}
-ggplot(data = df, aes(x = usd_goal_real)) +
+ggplot(data = df, aes(x = goal1)) +
   geom_histogram(aes(y = ..density.., fill = ..count..)) +
   scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
   stat_function(fun = dnorm, colour = "firebrick", 
-                args = list(mean = mean(df$usd_goal_real),
-                            sd = sd(df$usd_goal_real))) +
+                args = list(mean = mean(goal1, na.rm = TRUE),
+                            sd = sd(goal1, na.rm = TRUE))) +
+  ggtitle(paste("Histograma con curva normal teórica")) +
+  theme_bw()
+```
+
+### Diferencia entre monto objetivo y monto logrado
+
+Se calcula la diferencia entre estas variables
+
+```{r}
+df <- df %>%
+  mutate(goal.alpha = descarta.outliers(usd_goal_real, alpha),
+         dif.goal.pledge = usd_goal_real- usd_pledged_real,
+         dif.alpha = descarta.outliers(dif.goal.pledge, alpha))
+```
+
+```{r}
+ggplot(data = df, aes(x = dif.goal.pledge)) +
+  geom_histogram(aes(y = ..density.., fill = ..count..)) +
+  scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
+  stat_function(fun = dnorm, colour = "firebrick", 
+                args = list(mean = mean(df$dif.goal.pledge),
+                            sd = sd(df$dif.goal.pledge))) +
   ggtitle(paste("Histograma con curva normal teórica")) +
   theme_bw()
 ```
 
 ```{r}
-ggplot(data = df, aes(x = dif.pledged.goal)) +
+ggplot(data = df, aes(x = dif.alpha)) +
   geom_histogram(aes(y = ..density.., fill = ..count..)) +
   scale_fill_gradient(low = "#DCDCDC", high = "#7C7C7C") +
   stat_function(fun = dnorm, colour = "firebrick", 
-                args = list(mean = mean(df$dif.pledged.goal),
-                            sd = sd(df$dif.pledged.goal))) +
+                args = list(mean = mean(df$dif.alpha, na.rm = TRUE),
+                            sd = sd(df$dif.alpha, na.rm = TRUE))) +
   ggtitle(paste("Histograma con curva normal teórica")) +
   theme_bw()
 ```
@@ -396,20 +457,6 @@ df.CDF <- df %>%
 
 fig <- plot_ly(df.CDF, x = ~dif.pledged.goal, 
                y = ~CDF, type = 'scatter', mode = 'lines')
-fig
-```
-
-```{r}
-dif <- df$usd_goal_real - df$usd_pledge_real
-df.CDF <- df %>%
-  select(dif) %>%
-  arrange(dif) %>%
-  mutate(acumulado = cumsum(dif),
-         CDF = acumulado / sum(dif))
-
-fig <- plot_ly(df.CDF, x = ~dif, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-
 fig
 ```
 
