@@ -1,6 +1,6 @@
 ---
 title: "kickstarter"
-author: "dayci"
+author: "Arling Vázquez"
 date: "11/20/2020"
 output: html_document
 ---
@@ -23,14 +23,13 @@ rm(list=ls())
 source("funcionesKickstarter.R")
 ```
 
-En este proyecto se analizarán datos acerca de proyectos en Kicstarter; el conjunto de datos está disponible en Kaggle y consta de 378,661 registros y 19 variables que describen, fecha de inicio y final, cantidad de patrocinadores, país de origen, monto objetivo, monto logrado en moneda local y en dólares, entre otros.
+En este proyecto se analizarán datos acerca de proyectos en Kicstarter; el conjunto de datos está disponible en [Kaggle](https://www.kaggle.com/kemical/kickstarter-projects?fbclid=IwAR2NYBkzGoCMIOe2NqEkBvGt8rg3lMX2AmKBQOBFjnuhTU3Vr9QEQw4VrUc) y consta de 378,661 registros y 19 variables que describen, fecha de inicio y final, cantidad de patrocinadores, país de origen, monto objetivo, monto logrado en moneda local y en dólares, entre otros.
 
-https://www.kaggle.com/kemical/kickstarter-projects?fbclid=IwAR2NYBkzGoCMIOe2NqEkBvGt8rg3lMX2AmKBQOBFjnuhTU3Vr9QEQw4VrUc
-
-El objetivo del presente proyecto es replicar algunos resultados de éste artículo y responder las siguientes preguntas.
+El objetivo del presente proyecto es replicar algunos resultados de [este artículo](http://saumyaray.me/files/Kickstarter%20Data%20Analysis.pdf) y responder las siguientes preguntas.
 
 1. ¿La longitud de la campaña afecta en la tasa de éxito? 
 2. ¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
+
 2.1 Distribución de (monto objetivo y cantidad lograda)
 
 ## Lectura y limpieza de datos
@@ -56,24 +55,32 @@ summary(df0)
 
 El conjunto de datos incluye información sobre 7 campañas iniciadas en 1970; considerando que el sitio Kickstarter fue fundado en 2009, esos datos se descartarán de este análisis.
 
+El porcentaje de datos eliminados es:
+
 ```{r}
 100 * length(df0[which(df0$duracion > 100), 1]) / length(df0[,1])
 ```
+
+Se eliminan los registros con fecha de inicio anterior a 2009:
 
 ```{r}
 df <- df0 %>%
   filter(duracion <= 100)
 ```
 
+Una de las inconsistencias detectadas es que hay campañas con 0 patrocinadores pero con monto recaudado mayor que cero; sin embargo, dado que esta variable no se utiliza en este análisis, estos datos no serán descartados.
+
 ```{r}
-100 * length(df0[which(df0$backers > 100), 1]) / length(df0[,1])
+df %>%
+  filter(backers == 0, usd_pledged_real >0) %>%
+  tally()
 ```
 
 ## Duración de la campaña y tasa de éxito
 
 En esta parte se busca responder la siguiente pregunta: ¿La longitud de la campaña afecta en la tasa de éxito? 
 
-Solo el 35.4 % de las campañas logran completarse con éxito.
+Según los resultados, solo el 35.4 % de las campañas logra completarse con éxito.
 
 ```{r}
 tabla(df$state)
@@ -106,7 +113,12 @@ df <- df %>%
     duracion <= 82 ~ "68 a 82 días",
     duracion <= 93 ~ "83 a 92 días",
     TRUE ~ "Más de 92 días"))
-#vec.categorias <- unique(df$rangosDuracion)
+```
+
+Resumen de duración:
+
+```{r}
+summary(df$duracion)
 ```
 
 El 64.3% de campañas duró entre 23 y 37 días
@@ -124,7 +136,7 @@ crosstab(df$state, df$rangosDuracion, Freq = TRUE)%>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
 ```
 
-Ahora, la misma tabla con porcentajes
+Ahora, la misma tabla con porcentajes:
 
 ```{r}
 df.tabla <- crosstab(df$state, df$rangosDuracion, Freq = FALSE)
@@ -134,12 +146,7 @@ df.tabla %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
 ```
 
-```{r}
-fig <- plot_ly(df, y = ~duracion, type = "box")
-fig <- fig %>% add_trace(y = ~rnorm(50, 1))
-
-fig
-```
+Comparación de tasa de éxito por estado
 
 ```{r}
 df.tabla <-df.tabla %>%
@@ -147,8 +154,7 @@ df.tabla <-df.tabla %>%
   filter(renglon == "successful")
 
 fig <- plot_ly(df.tabla, x = ~columna, y = ~Freq, 
-               type = 'scatter', mode = 'lines',
-               ylab = "Tasa de éxito", xlab = "Duración de campaña")
+               type = 'scatter', mode = 'lines')
 
 fig
 ```
@@ -157,19 +163,17 @@ De esta gráfica, se observa que los proyectos con duración entre 8 y 22 días 
 
 A continuación, se repican algunas gráficas del artículo de referencia.
 
-```{r}
-summary(df$duracion)
-```
-
 ### Distribución acumulada
 
 Estadísticos descriptivos de la duración
 
 ```{r}
 summary(df$duracion)
-paste("Moda: ", mfv(df$duracion))
-paste("Desviación estándar: ", sd(df$duracion))
+mfv(df$duracion)
+sd(df$duracion)
 ```
+
+### CDF por grupo
 
 ```{r}
 estado <- "successful"
@@ -231,7 +235,7 @@ plot(df.cum$probabilidad, type = "l", col = "blue",
      main = estado, xlim = c(0, 100))
 ```
 
-### Duración en rango por estado de campaña
+### Duración (rangos) por estado de campaña
 
 ```{r}
 estado <- "successful"
@@ -307,18 +311,23 @@ hist(fig$duracion, main = estado,
 
 ## Relación entre monto objetivo y éxito de la campaña
 
-2. ¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
+¿Cuál es la relación entre el objetivo ($) y el éxito de la campaña?
+
 2.1 Distribución de (monto objetivo y cantidad lograda)
+
+Se agrupa el monto objetivo en los siguientes grupos
 
 ```{r}
 df <- df %>%
   arrange(usd_goal_real) %>%
   mutate(rangosGoal = case_when(
-    usd_goal_real <= 1000 ~ "(0, 1,000]",
-    usd_goal_real <= 10000 ~ "(1,000, 10,000]",
-    usd_goal_real <= 100000 ~ "(10,000, 100,000]",
-    TRUE ~ "(100,000, ...)"))
+    usd_goal_real <= 1000 ~ "G1 [0, 1,000]",
+    usd_goal_real <= 10000 ~ "G2 (1,000, 10,000]",
+    usd_goal_real <= 100000 ~ "G3 (10,000, 100,000]",
+    TRUE ~ "G4 (100,000, ...)"))
 ```
+
+Algunos estadísticos:   
 
 ```{r}
 df %>%
@@ -353,6 +362,7 @@ df.desc <- df %>%
 nombres <- t(df.desc[, 1])
 df.desc <- data.frame(t(df.desc[-1]))
 colnames(df.desc) <- nombres
+
 cbind(df.desc, General =goal.descriptivos) %>%
   round(2) %>%
   kbl() %>%
@@ -368,26 +378,25 @@ df %>%
             n = n()) 
 ```
 
-Resumen estadístico de usd_goal_real
+Resumen estadístico e histograma de usd_goal_real.
 
 ```{r}
 summary(df$usd_goal_real)
 ```
 
 ```{r}
-hist(df$usd_goal_real)
+hist(df$usd_goal_real, main = "Histograma: usd_goal_real",
+     xlab = "usd_goal_real", ylab = NULL)
 ```
 
-#### Distribución de usd_goal_real
-
-Descartando outliers, se elimina al \alpha \% de los datos extremos
+Se descartan los outliers, se elimina al \alpha \% de los datos extremos
 
 ```{r}
-alpha <- 0.05
+alpha <- 0.01
 
 goal1 <- descarta.outliers(df$usd_goal_real, alpha)
-hist(goal1, main = "usd_goal_real sin outliers", freq = TRUE,
-     xlab = "usd_goal_real", ylab = NULL)
+hist(goal1, main = "usd_goal_real sin outliers",
+     xlab = "usd_goal_real", ylab = NULL, freq = TRUE)
 ```
 
 Una distribución normal no es la mejor elección para modelar el monto objetivo; sin embargo, si se ajusta al logaritmo de los datos.
@@ -403,9 +412,14 @@ ggplot(data = df, aes(x = goal1)) +
   theme_bw()
 ```
 
-### Diferencia entre monto objetivo y monto logrado
+```{r}
+cbind(df.desc, General =goal.descriptivos) %>%
+  round(2) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) 
+```
 
-Se calcula la diferencia entre estas variables
+### CDF
 
 ```{r}
 df <- df %>%
@@ -413,6 +427,84 @@ df <- df %>%
          dif.goal.pledge = usd_goal_real- usd_pledged_real,
          dif.alpha = descarta.outliers(dif.goal.pledge, alpha))
 ```
+
+```{r}
+df.CDF <- df %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  mutate(acumulado =  (usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+         
+fig <- plot_ly(x = ~df.CDF$usd_goal_real, 
+               y = df.CDF$CDF, type = 'scatter', mode = 'lines')
+fig
+
+plot(CDF)
+```
+
+```{r}
+df.CDF <- df %>%
+  select(usd_goal_real) %>%
+  arrange(usd_goal_real) %>%
+  filter(!is.na(usd_goal_real)) %>%
+  mutate(acumulado = cumsum(usd_goal_real),
+         CDF = acumulado / sum(usd_goal_real))
+
+fig <- plot_ly(x = ~df.CDF$usd_goal_real, 
+               y = df.CDF$CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+```{r}
+df.CDF <- df %>%
+  select(goal.alpha) %>%
+  arrange(goal.alpha) %>%
+  filter(!is.na(goal.alpha)) %>%
+  mutate(acumulado = cumsum(goal.alpha),
+         CDF = acumulado / sum(goal.alpha))
+
+fig <- plot_ly(x = ~df.CDF$goal.alpha, 
+               y = df.CDF$CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+
+```{r}
+rango = "G1 [0, 1,000]"
+df.CDF <- df %>%
+  filter(rangosGoal == rango) %>%
+  select(goal.alpha) %>%
+  arrange(goal.alpha) %>%
+  filter(!is.na(goal.alpha)) %>%
+  mutate(acumulado = cumsum(goal.alpha),
+         CDF = acumulado / sum(goal.alpha))
+
+fig <- plot_ly(df.CDF, x = ~goal.alpha, 
+               y = ~CDF, type = 'scatter', mode = 'lines')
+fig
+```
+
+
+```{r}
+rango = "(1,000, 10,000]"
+
+
+```
+
+```{r}
+rango = "(10,000, 100,000]"
+
+```
+
+```{r}
+rango = "(100,000, ...)"
+
+
+```
+
+### Diferencia entre monto objetivo y monto logrado
+
+Se calcula la diferencia entre estas variables
 
 ```{r}
 ggplot(data = df, aes(x = dif.goal.pledge)) +
@@ -449,18 +541,6 @@ fig
 ```
 
 ```{r}
-df.CDF <- df %>%
-  select(dif.pledged.goal) %>%
-  arrange(dif.pledged.goal) %>%
-  mutate(acumulado = cumsum(dif.pledged.goal),
-         CDF = acumulado / sum(dif.pledged.goal))
-
-fig <- plot_ly(df.CDF, x = ~dif.pledged.goal, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-fig
-```
-
-```{r}
 estado <- "successful"
 
 df.goal <- df %>% 
@@ -474,65 +554,4 @@ ggplot(data = df.goal, aes(x = usd_goal_real)) +
                             sd = sd(df.goal$usd_goal_real))) +
   ggtitle(paste("Histograma con curva normal teórica: ", estado)) +
   theme_bw()
-```
-
-
-```{r}
-rango = "[0, 1,000]"
-df.CDF <- df %>%
-  filter(rangosGoal == rango) %>%
-  select(usd_goal_real) %>%
-  arrange(usd_goal_real) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
-
-fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-
-fig
-```
-
-
-```{r}
-rango = "(1,000, 10,000]"
-df.CDF <- df %>%
-  filter(rangosGoal == rango) %>%
-  select(usd_goal_real) %>%
-  arrange(usd_goal_real) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
-
-fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-fig
-```
-
-```{r}
-rango = "(10,000, 100,000]"
-df.CDF <- df %>%
-  filter(rangosGoal == rango) %>%
-  select(usd_goal_real) %>%
-  arrange(usd_goal_real) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
-
-fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-
-fig
-```
-
-```{r}
-rango = "(100,000, ...)"
-df.CDF <- df %>%
-  filter(rangosGoal == rango) %>%
-  select(usd_goal_real) %>%
-  arrange(usd_goal_real) %>%
-  mutate(acumulado = cumsum(usd_goal_real),
-         CDF = acumulado / sum(usd_goal_real))
-
-fig <- plot_ly(df.CDF, x = ~usd_goal_real, 
-               y = ~CDF, type = 'scatter', mode = 'lines')
-
-fig
 ```
